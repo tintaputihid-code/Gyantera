@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Memuat Aplikasi...</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .loading { text-align: center; padding: 80px 20px; }
+    .loading h2 { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container nav-inner">
+      <a href="dashboard.html" class="logo">← Kembali ke Dashboard</a>
+      <div class="nav-links"><span id="appName"></span></div>
+    </div>
+  </nav>
+
+  <div id="loading" class="loading">
+    <h2>Memuat aplikasi...</h2>
+    <p>Mohon tunggu sebentar</p>
+  </div>
+
+  <div id="accessDenied" class="loading hidden">
+    <h2>🚫 Akses Ditolak</h2>
+    <p>Anda belum membeli aplikasi ini.</p>
+    <a href="dashboard.html" class="btn btn-primary mt-4">Kembali ke Dashboard</a>
+  </div>
+
+  <iframe id="appFrame" class="app-frame hidden"></iframe>
+
+  <script src="js/api.js"></script>
+  <script>
+    if (!localStorage.getItem('token')) window.location.href = 'login.html';
+
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get('slug');
+
+    async function load() {
+      try {
+        const [app, accessInfo] = await Promise.all([
+          api.getApp(slug),
+          api.checkAccess(slug),
+        ]);
+
+        document.getElementById('appName').textContent = app.name;
+        document.title = app.name;
+
+        if (!accessInfo.hasAccess) {
+          document.getElementById('loading').classList.add('hidden');
+          document.getElementById('accessDenied').classList.remove('hidden');
+          return;
+        }
+
+        const frame = document.getElementById('appFrame');
+        frame.src = app.url;
+        frame.onload = () => {
+          document.getElementById('loading').classList.add('hidden');
+          frame.classList.remove('hidden');
+        };
+      } catch (err) {
+        alert(err.message);
+        window.location.href = 'dashboard.html';
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

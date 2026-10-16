@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard — PlatformApps</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav>
+    <div class="container nav-inner">
+      <a href="index.html" class="logo">🚀 PlatformApps</a>
+      <div class="nav-links">
+        <span id="userName"></span>
+        <button class="btn btn-outline" onclick="logout()">Keluar</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>Dashboard</h1>
+      <p>Kelola aplikasi dan transaksi Anda</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="apps">Aplikasi Saya</button>
+      <button class="tab" data-tab="transactions">Riwayat Transaksi</button>
+      <button class="tab" data-tab="store">Toko</button>
+    </div>
+
+    <div id="tab-apps">
+      <div id="myApps" class="grid"></div>
+    </div>
+    <div id="tab-transactions" class="hidden">
+      <table>
+        <thead>
+          <tr><th>Order ID</th><th>Aplikasi</th><th>Jumlah</th><th>Status</th><th>Tanggal</th><th>Aksi</th></tr>
+        </thead>
+        <tbody id="txBody"></tbody>
+      </table>
+    </div>
+    <div id="tab-store" class="hidden">
+      <div id="storeApps" class="grid"></div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    if (!localStorage.getItem('token')) window.location.href = 'login.html';
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    document.getElementById('userName').textContent = user.name || '';
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = 'index.html';
+    }
+
+    // Tabs
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.onclick = () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        ['apps', 'transactions', 'store'].forEach(t => {
+          document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab.dataset.tab);
+        });
+      };
+    });
+
+    async function loadMyApps() {
+      const grid = document.getElementById('myApps');
+      try {
+        const apps = await api.myApps();
+        if (apps.length === 0) {
+          grid.innerHTML = '<p>Anda belum memiliki aplikasi. Buka tab <b>Toko</b> untuk membeli.</p>';
+          return;
+        }
+        grid.innerHTML = apps.map(app => `
+          <div class="card">
+            <div class="card-icon">${app.icon || '📦'}</div>
+            <h3>${app.name}</h3>
+            <p class="desc">${app.description}</p>
+            <a href="app-viewer.html?slug=${app.slug}" class="btn btn-primary">Buka Aplikasi</a>
+          </div>
+        `).join('');
+      } catch (err) {
+        grid.innerHTML = `<p style="color:red;">${err.message}</p>`;
+      }
+    }
+
+    async function loadTransactions() {
+      const tbody = document.getElementById('txBody');
+      try {
+        const txs = await api.myTransactions();
+        if (txs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center">Belum ada transaksi</td></tr>';
+          return;
+        }
+        tbody.innerHTML = txs.map(tx => `
+          <tr>
+            <td>${tx.orderId}</td>
+            <td>${tx.application.name}</td>
+            <td>Rp ${tx.grossAmount.toLocaleString('id-ID')}</td>
+            <td><span class="badge badge-${tx.status === 'SUCCESS' ? 'success' : tx.status === 'PENDING' ? 'pending' : 'failed'}">${tx.status}</span></td>
+            <td>${new Date(tx.createdAt).toLocaleDateString('id-ID')}</td>
+            <td>${tx.status === 'PENDING' && tx.snapUrl ? `<a href="${tx.snapUrl}" target="_blank" class="btn btn-outline">Bayar</a>` : '-'}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" style="color:red;">${err.message}</td></tr>`;
+      }
+    }
+
+    async function loadStore() {
+      const grid = document.getElementById('storeApps');
+      try {
+        const apps = await api.listApps();
+        grid.innerHTML = apps.map(app => `
+          <div class="card">
+            <div class="card-icon">${app.icon || '📦'}</div>
+            <div class="category">${app.category}</div>
+            <h3>${app.name}</h3>
+            <p class="desc">${app.description}</p>
+            <div class="price">Rp ${app.price.toLocaleString('id-ID')}</div>
+            <button class="btn btn-primary" onclick="buy('${app.id}')">Beli</button>
+          </div>
+        `).join('');
+      } catch (err) {
+        grid.innerHTML = `<p style="color:red;">${err.message}</p>`;
+      }
+    }
+
+    async function buy(applicationId) {
+      try {
+        const result = await api.createPayment(applicationId);
+        if (window.snap) {
+          window.snap.pay(result.token, {
+            onSuccess: () => { loadMyApps(); loadTransactions(); loadStore(); },
+            onPending: () => { loadTransactions(); },
+            onError: () => alert('Pembayaran gagal'),
+          });
+        } else {
+          window.location.href = result.redirectUrl;
+        }
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    loadMyApps();
+    loadTransactions();
+    loadStore();
+  </script>
+  <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="GANTI_CLIENT_KEY_ANDA"></script>
+</body>
+</html>

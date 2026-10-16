@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Platform Apps — Aplikasi Digital untuk Profesional</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav>
+    <div class="container nav-inner">
+      <a href="index.html" class="logo">🚀 PlatformApps</a>
+      <div class="nav-links">
+        <a href="#apps">Aplikasi</a>
+        <a href="login.html" id="loginLink">Masuk</a>
+        <a href="dashboard.html" id="dashboardLink" class="btn btn-primary hidden">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="container">
+      <h1>Aplikasi Digital untuk Profesional</h1>
+      <p>Beli sekali, akses selamanya. Tesis Builder, Paten Builder, dan lainnya dalam satu platform.</p>
+      <a href="#apps" class="btn btn-primary">Lihat Aplikasi</a>
+    </div>
+  </section>
+
+  <section id="apps" class="container">
+    <h2 class="text-center mb-4" style="margin-top:40px;">Katalog Aplikasi</h2>
+    <div id="appsGrid" class="grid"></div>
+  </section>
+
+  <script src="js/api.js"></script>
+  <script>
+    // Cek login
+    if (localStorage.getItem('token')) {
+      document.getElementById('loginLink').classList.add('hidden');
+      document.getElementById('dashboardLink').classList.remove('hidden');
+    }
+
+    // Load apps
+    async function loadApps() {
+      const grid = document.getElementById('appsGrid');
+      try {
+        const apps = await api.listApps();
+        if (apps.length === 0) {
+          grid.innerHTML = '<p class="text-center">Belum ada aplikasi.</p>';
+          return;
+        }
+        grid.innerHTML = apps.map(app => `
+          <div class="card">
+            <div class="card-icon">${app.icon || '📦'}</div>
+            <div class="category">${app.category}</div>
+            <h3>${app.name}</h3>
+            <p class="desc">${app.description}</p>
+            <div class="price">
+              Rp ${app.price.toLocaleString('id-ID')}
+              ${app.type === 'SUBSCRIPTION' ? '<small>/bulan</small>' : '<small>sekali bayar</small>'}
+            </div>
+            <button class="btn btn-primary" onclick="buy('${app.id}')">Beli Sekarang</button>
+          </div>
+        `).join('');
+      } catch (err) {
+        grid.innerHTML = `<p class="text-center" style="color:red;">${err.message}</p>`;
+      }
+    }
+
+    async function buy(applicationId) {
+      if (!localStorage.getItem('token')) {
+        window.location.href = `login.html?redirect=index.html`;
+        return;
+      }
+      try {
+        const result = await api.createPayment(applicationId);
+        // Buka Snap
+        if (window.snap) {
+          window.snap.pay(result.token, {
+            onSuccess: () => window.location.href = 'dashboard.html',
+            onPending: () => window.location.href = 'dashboard.html',
+            onError: () => alert('Pembayaran gagal'),
+            onClose: () => alert('Pembayaran dibatalkan'),
+          });
+        } else {
+          window.location.href = result.redirectUrl;
+        }
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    loadApps();
+  </script>
+  <!-- Midtrans Snap -->
+  <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="GANTI_CLIENT_KEY_ANDA"></script>
+</body>
+</html>
